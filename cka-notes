@@ -1,0 +1,8 @@
+RBAC :
+Subject: The user or process that wants to access a resource.
+Resource: The Kubernetes API resource type e.g. a Deployment or node.
+Verb: The operation that can be ex
+
+# create a user in k8s : https://kubernetes.io/docs/tasks/tls/certificate-issue-client-csr
+# change the default ns
+kubectl config set-context --current --namespace=NAMESPACE
