@@ -6,3 +6,4 @@ Verb: The operation that can be ex
 # create a user in k8s : https://kubernetes.io/docs/tasks/tls/certificate-issue-client-csr
 # change the default ns
 kubectl config set-context --current --namespace=NAMESPACE
+test-git
