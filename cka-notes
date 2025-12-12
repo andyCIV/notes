@@ -3,12 +3,57 @@ Set auto-completion for aliases
 complete -p YOUR_CMD # find the command fucntion
 complete -F YOUR_CMD_FUNCTION kubectl # set this in bashrc
 
-RBAC :
+Faire un focus sur les API-GATEWAY
+
+## RBAC :
 Subject: The user or process that wants to access a resource.
 Resource: The Kubernetes API resource type e.g. a Deployment or node.
 Verb: The operation that can be ex
+kubectl create role <name> --verb=<verbs> --resource=<resources> -n <ns>
+kubectl create rolebinding <name> --role=<role> --user=<user> -n <ns>
+kubectl create clusterrole ...
+kubectl create clusterrolebinding ...
+kubectl auth can-i <verb> <resource> --as <user>
+
 
 # create a user in k8s : https://kubernetes.io/docs/tasks/tls/certificate-issue-client-csr
 # change the default ns
 kubectl config set-context --current --namespace=NAMESPACE
-test-git
+
+# YAML syntax
+microservice : #objet
+  app : auth # key : value
+  port : 300
+  version : 1.7
+
+# In case of list :
+
+microservice :
+  - app : auth
+    port : 300
+    version : 1.7
+  - app: user
+    port : 3009
+    version : 1.8
+
+# paste un multiline dans un yaml file
+mylines: |
+   line 1
+   line 2
+   line 3
+
+Exemple executer un script 
+command: 
+   - sh
+   - -C 
+   - |
+    Paste all 
+    Your script 
+
+#Paste a long sentence in  yaml
+mylongsentence: >
+    Mariame joue
+    a la balle 
+    avec bile 
+    son ami
+
