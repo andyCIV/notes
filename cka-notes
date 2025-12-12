@@ -1,3 +1,8 @@
+Note : 
+Set auto-completion for aliases
+complete -p YOUR_CMD # find the command fucntion
+complete -F YOUR_CMD_FUNCTION kubectl # set this in bashrc
+
 RBAC :
 Subject: The user or process that wants to access a resource.
 Resource: The Kubernetes API resource type e.g. a Deployment or node.
