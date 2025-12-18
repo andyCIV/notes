@@ -3,7 +3,9 @@ Set auto-completion for aliases
 complete -p YOUR_CMD # find the command fucntion
 complete -F YOUR_CMD_FUNCTION kubectl # set this in bashrc
 
-Faire un focus sur les API-GATEWAY
+WARNING : FAIRE UN FOCUS SUR 
+- LES API-GATEWAY
+- LES STRATEGY DANS LES DEPLOYMENT
 
 ## RBAC :
 Subject: The user or process that wants to access a resource.
@@ -69,3 +71,32 @@ EOF
 sudo sysctl --system
 
 # Backup and restore ETCD
+### Backup
+ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 \
+  --cacert=<trusted-ca-file> --cert=<cert-file> --key=<key-file> \
+  snapshot save <backup-file-location>
+
+Exemple : 
+ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 \
+  --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key \
+  snapshot save /tmp/snapshot.db
+
+#### Restore
+export ETCDCTL_API=3
+etcdctl --data-dir <data-dir-location> snapshot restore snapshot.db
+
+Now edit /etc/kubernetes/manifests/etcd.yaml and change **volumes.hostPath.path** for name: etcd-data to <data-dir-location>,
+then execute kubectl -n kube-system delete pod <name-of-etcd-pod> or systemctl restart kubelet.service or both
+
+# Determine the api-server endpoint
+kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}'
+
+# Get the Secret access token of a ServiceAccount
+kubectl get secret $(kubectl get serviceaccount api-access -n apps \
+ -o jsonpath='{.secrets[0].name}') -o jsonpath='{.data.token}' -n apps \
+ | base64 --decode
+
+# Curl for listing pods in ns rm from a pod
+curl https://10.10.10.38:6443/api/v1/namespaces/rm/pods --header --insecure
+
+#  Rolling Updates and Rollbacks 
