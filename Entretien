@@ -1,0 +1,497 @@
+Entretien
+---------
+| Ne surtout pas oublier nova boot process, volume allocation process, qu'est-ce qui est stocke dans les galera, rabbitmq 
+
+osp 13 vs osp 16
+OSP 13 
+- pas de DVR
+- docker
+
+osp 16
+- dvr
+- podman
+
+* Se connecter a la vIMS pour checker en condition reelle.
+flat network, VLAN, VXLAN, GRE tunnels
+undercloud vs overcloud : 
+DRV = Data Request Validator | Les DRV sont des mécanismes de vérification dans OpenStack, principalement utilisés par Nova (le service de calcul).
+DVR : Distributed Virtual Router; deplacent le routage du traffic entrant sortant sur les compute, ce qui augmente la resilience et reduis le SPOF sur les networks nodes
+
+RHOSP 13 vs RHOPS16
+undercloud : installation openstack minimal pour deployer le overcloud | deploy, install and manage the overcloud
+Services principaux :
+
+Ironic → provisionnement des serveurs
+Heat → orchestration du déploiement
+Glance → images de déploiement
+Neutron → réseau d’installation
+Swift → stockage des templates et images
+
+Overcloud : c'est le cloud final, celui sur lequel on deployer les projets. 
+role:
+ - controller
+ - network *
+ - storage
+ - compoute
+
+Without Undercloud → No Overcloud.
+Without Overcloud → Users have no cloud.
+
+OVS = Open vSwitch 
+Un switch virtuel logiciel
+Qui crée des réseaux entre VM
+Sépare les réseaux des tenants (VXLAN/Geneve)
+Connecte les réseaux internes à l’extérieur (br-ex)
+Applique les règles network via OpenFlow
+Mais dépend de Neutron agents pour L3/DHCP/Firewall
+
+OVN (Open Virtual Network) = OVS + neutron-agent (all in one)
+
+TripleO = “OpenStack on OpenStack” : Utiliser openstack pour deployer openstack --> outil d’installation, déploiement et gestion d’OpenStack, utilisé surtout par Red Hat (RHOSP 10 → 16).
+Tu écris un fichier d’inventaire (les nœuds baremetal)
+L’Undercloud boote chaque serveur via PXE
+Ironic installe un OS minimal (images de déploiement)
+Heat génère la configuration Overcloud
+TripleO installe les services :
+contrôleurs
+compute nodes
+storage nodes
+Le cloud Overcloud démarre et est prêt à l’usage
+
++------------------------------+
+|         UNDERCLOUD           |
+|  (OpenStack de gestion)      |
+| - Ironic                     |
+| - Heat                       |
+| - Neutron (provisioning)     |
+| - Glance (images)            |
+| - Swift (templates)          |
++------------------------------+
+              |
+   Déploiement automatisé
+              v
++------------------------------+
+|          OVERCLOUD           |
+|    (vrai cluster OpenStack)  |
+| Controllers | Computes | Ceph|
++------------------------------+
+
+les reseaux dans openstack :
+ctlplane : 
+Provisionner les serveurs (PXE)
+Communication Undercloud ↔ Overcloud
+Ironic : gestion du baremetal
+Heartbeats et monitoring des nœuds
+
+Internal API : Communication entre les services OpenStack au sein de l’Overcloud
+API internes Nova, Neutron, Glance, Cinder…
+Communication RabbitMQ, MariaDB/Galera
+HAProxy interne
+
+Storage : Utilisé par Cinder, Glance, Nova pour accéder au stockage
+Tenant Network : utilisé par les VM des utilisateurs
+External Network : Réseau utilisé pour la sortie publique : floating IP, API publiques.
+
+                     +---------------------------+
+                     |         OVERCLOUD         |
+                     +---------------------------+
+                              |  |  |  |
+                              |  |  |  |
+    +--------------+   +------+  |  |  +----------------+
+    |  ctlplane    |---| Undercloud |                  |
+    +--------------+   +------------+                  |
+                                             Réseaux Overcloud :
+                           +--------------------------+
+                           | External      (public)   |
+                           | Internal API  (services) |
+                           | Storage       (Cinder)   |
+                           | Tenant        (VMs)      |
+                           +--------------------------+
+
+controller : gérer et piloter le cloud
+Keystone
+
+Service d’identification (tokens, users, projets).
+
+✔️ Glance : Bibliothèque d’images VM (stockage + API).
+
+✔️ Nova Control Plane
+
+nova-api
+nova-conductor
+nova-scheduler
+
+
+✔️ Neutron Server
+
+neutron-server
+ML2 plugin
+DHCP/L3 agent (si OVS)
+OVN Northbound/SB DB (si OVN)
+
+✔️ Cinder control plane : API + scheduler + volume manager (si backend local).
+
+✔️ Horizon : Dashboard Web.
+- pcs
+- galera
+- rabbitmq
+- Haproxy
+
+les compute :
+- openstack-nova-compute
+- libvirt
+- neutron-agent
+  Si OVS :
+     * neutron-openvswitch-agent
+     * neutron-metadata-agent (si pas DVR ou si mode spécifique)
+  Si OVN :
+     * ovn-controller
+     * Pas de L3 agent ni DHCP agent (OVN les remplace)
+
+                 +--------------------+
+   Controller -->| nova-scheduler     |
+                 +--------------------+
+                           |
+                           v
+                 +--------------------+
+                 |  Compute Node      |
+                 |--------------------|
+                 | nova-compute       |
+                 | libvirt + KVM      |
+                 | OVS/OVN networking |
+                 +--------------------+
+                   |     |     |
+                  VM1   VM2   VM3   <--- VM des utilisateurs
+
+Les networks :
+- l2-agent (ovs) : neutron-openvswitch-agent
+- l3-agent (routage) : neutron-l3-agent
+- dhcp-agent : neutron-dhcp-agent
+- metadata : neutron-metadata-agent
+- LBaaS : Octavia
+
+Le network node :
+Gère les routeurs Neutron
+Gère les DHCP
+Gère les Floating IP
+Gère le NAT
+Gère les réseaux virtuels (L2/L3)
+
+les matadata-agent : permettent au vms de recevoir les metatata tels que: script cloud-init, nom de la vm, cle ssh, ip ..
+cloud-init cherche les metadata via http://169.254.169.254/latest/meta-data/ le metadata-agent :
+intercepte la requête
+redirige vers le service Nova Metadata
+renvoie la réponse à la VM
+
+nova-metadata-agent → fournit les infos sur les VM.
+neutron-metadata-agent → permet aux VM sur les réseaux Neutron d’accéder à ces infos.
+VM (sur un réseau Neutron)
+        |
+        | requête metadata
+        v
+neutron-metadata-agent (proxy)
+        |
+        v
+nova-metadata-agent (fournit les infos)
+        |
+        v
+Nova API (infos sur la VM)
+
+flat = pas d’encapsulation, pas d’isolation entre réseaux.
+vlan = encapsulation, isolation 802.1Q
+vxlan = Réseau overlay en tunnel au-dessus de l’IP (UDP port 4789). Chaque réseau tenant a un VNI (ID VXLAN).
+ML2 = Modular Layer 2 plugin. C'est le plugin réseau principal de Neutron. Il fait le lien entre neutron-api et les drivers networks (OVS, OVN, linux-bridge)
+ML2 décide comment créer les réseaux, comment les isoler et quel mécanisme utiliser sur les noeuds
+ML2 a deux partie : dtype_drivers, mechanism_driver
+Exemple : 
+type_drivers = flat,vlan,vxlan
+tenant_network_types = vxlan
+mechanism_drivers = openvswitch
+pg_num : le nombre de pg actuelle dans le pool 
+pgp_num : ce que reecommande l'autoscaler
+
+Procedure de restoration ceph : 
+# 1. Démarrer les MONs en premier (ordre critique!)
+systemctl start ceph-mon@<hostname>
+
+# 2. Vérifier le quorum
+ceph -s
+ceph quorum_status --format json-pretty
+
+# 3. Démarrer les MGRs
+systemctl start ceph-mgr@<hostname>
+
+# 4. Démarrer les OSDs progressivement
+# IMPORTANT: ne pas les démarrer tous en même temps!
+for osd in {0..11}; do
+  systemctl start ceph-osd@$osd
+  sleep 30
+  ceph -s | grep -i "recovery\|backfill"
+done
+
+# 5. Vérifier la santé du cluster
+ceph health detail
+ceph osd tree
+ceph df
+
+# 6. Désactiver les flags de maintenance si activés
+ceph osd unset noout
+ceph osd unset norecover
+ceph osd unset nobackfill
+
+OPENSTACK
+# Ordre crucial: Base → Core → Compute
+
+# 1. Base de données (Galera)
+systemctl start mariadb
+mysql -e "SHOW STATUS LIKE 'wsrep_cluster_size';"
+
+# 2. RabbitMQ
+systemctl start rabbitmq-server
+rabbitmqctl cluster_status
+
+# 3. Memcached
+systemctl start memcached
+
+# 4. Services OpenStack dans l'ordre:
+services=(
+  "openstack-keystone"
+  "openstack-glance-api"
+  "openstack-glance-registry"
+  "openstack-nova-api"
+  "openstack-nova-conductor"
+  "openstack-nova-scheduler"
+  "openstack-neutron-server"
+  "openstack-cinder-api"
+  "openstack-cinder-scheduler"
+)
+
+for service in "${services[@]}"; do
+  systemctl start $service
+  sleep 10
+  systemctl status $service
+done
+
+# 5. Vérifier les endpoints
+openstack endpoint list
+openstack compute service list
+openstack network agent list
+
+SUR LES COMPUTES
+- checker nova-compute 
+- checker openvswitch
+
+POINT A CHECKER 
+✅ Quorum CEPH (MONs) avant tout
+✅ Pas de split-brain sur Galera
+✅ État des PGs CEPH (ceph pg stat)
+✅ Connectivité RabbitMQ entre controllers
+✅ Synchronisation NTP sur tous les nœuds
+✅ État des agents Neutron
+✅ VMs en état ACTIVE dans Nova vs état réel libvirt
+
+
+NO VALID HOST FOUND
+"L’erreur No valid host was found signifie que Nova Scheduler n’a trouvé aucun compute capable d’héberger la VM.
+En astreinte, je vérifie d’abord l’état des services Nova avec openstack compute service list, puis les logs du scheduler pour savoir pourquoi les hôtes sont filtrés.
+Ensuite je contrôle les compute nodes : saturation CPU/RAM, disque plein, service nova-compute KO.
+Je vérifie aussi le stockage Ceph (ceph -s), car un cluster full ou en erreur empêche la création de volumes.
+Je regarde les quotas du tenant, et je teste la création d’un port Neutron.
+Une fois la cause identifiée, j’applique la correction et documente l’incident."
+
+
+NOVA BOOT PROCESS
+Utilisateur (Dashboard / CLI)
+        │ (authentification)
+        ▼
+    Keystone  ←––– vérifie identifiants, renvoie token
+        │
+        ▼
+    Nova API  ←––– reçoit la requête de création VM
+        │
+        ▼   crée une entrée initiale en DB
+    Nova Scheduler  ←––– choisit un hôte disponible
+        │
+        ▼
+    Nova Compute (sur hôte sélectionné)
+        │
+        ├─> Nova Conductor  ←–  récupère infos VM (flavor, host, etc.)
+        │
+        ├─> Glance  ←–  fournit l’image de la VM
+        │
+        ├─> Neutron  ←–  configure réseau, IP
+        │
+        └─> Cinder (optionnel)  ←– attache un volume bloc si besoin
+        │
+        ▼
+    Hyperviseur (libvirt/KVM/…)  ←– VM physiquement lancée
+        │
+        ▼
+    VM active / “running”
+
+
+CEPH CECRITURE
+Client
+  │
+  ├──→ Demande la CRUSH map au MON
+  │
+  ├──→ Calcule l’OSD primaire avec CRUSH
+  │
+  ├──→ Envoie les données à l’OSD primaire
+        │
+        ├──→ OSD secondaire 1  (réplication)
+        └──→ OSD secondaire 2  (réplication)
+                │
+        <─── Ack vers OSD primaire
+  │
+<──── Ack final au client
+
+MON : contrôle / carte du cluster
+OSD : stockage réel des données
+MDS (METADATA SERVER) : métadonnées pour CephFS
+CRUSH : algorithme pour décider où vont les données
+MGR (CEPH MANGER) : forunit les statistique du cluster
+Process d’écriture :
+client → calcule emplacement → écrit sur OSD primaire → réplication → confirmation
+
+
+Galera = toutes les données persistantes et structurées d’OpenStack.
+(inventaires, états, objets, métadonnées, configurations)
+RabbitMQ = messages temporaires (actions, instructions, événements).
+Galera = données persistantes (état du cloud).
+
+| Service           | Rôle                                                                    |
+| ----------------- | ----------------------------------------------------------------------- |
+| **cinder-api**    | Reçoit les requêtes, les valide, parle avec Keystone, envoie les ordres |
+| **cinder-volume** | Exécute réellement les opérations sur le backend de stockage            |
+
+| Service           | Rôle                                                       |
+| ----------------- | ---------------------------------------------------------- |
+| **cinder-backup** | Sauvegarde et restaure les volumes vers un backend externe |
+
+
+CINDER WORKFLOW
+
+                    ┌──────────────────────────────────┐
+                    │           Utilisateur             │
+                    │   (CLI / Horizon / API SDK)       │
+                    └──────────────────────────────────┘
+                                   │
+                                   ▼
+                         ┌─────────────────┐
+                         │   CINDER-API    │
+                         │ (Front-end REST)│
+                         └─────────────────┘
+                                   │
+             ┌─────────────────────┼─────────────────────────┐
+             │                     │                         │
+             ▼                     ▼                         ▼
+ ┌──────────────────┐    ┌───────────────────┐     ┌──────────────────┐
+ │ CINDER-SCHEDULER │    │  CINDER-VOLUME    │     │  CINDER-BACKUP   │
+ │(Choix du backend │    │(Ops sur backend   │     │(Sauvegardes des  │
+ │ et du host)      │    │ de stockage)      │     │   volumes)        │
+ └──────────────────┘    └───────────────────┘     └──────────────────┘
+             │                     │                         │
+             ▼                     │                         ▼
+     (via RabbitMQ)                │                 (via RabbitMQ)
+                                   │
+                         ┌──────────────────────────┐
+                         │     Backends Cinder      │
+                         ├──────────────────────────┤
+                         │  LVM (local)             │
+                         │  Ceph RBD                │
+                         │  NetApp                  │
+                         │  Dell EMC                │
+                         │  Pure Storage            │
+                         │  NFS                     │
+                         │  … autres drivers …      │
+                         └──────────────────────────┘
+                                   │
+                                   ▼
+                       ┌──────────────────────────┐
+                       │     Stockage physique    │
+                       └──────────────────────────┘
+
+
+
+
+                         ┌────────────────────────────────────┐
+                         │          Utilisateur               │
+                         │ (Horizon / CLI / API / Terraform)  │
+                         └────────────────────────────────────┘
+                                         │
+                                         ▼
+                               ┌──────────────────┐
+                               │     NOVA-API     │
+                               │ (Compute REST)   │
+                               └──────────────────┘
+                                         │
+                                         ▼
+                               ┌──────────────────┐
+                               │ NOVA-SCHEDULER   │
+                               │ (choix du host)  │
+                               └──────────────────┘
+                                         │
+                                         ▼
+                        ┌──────────────────────────────────┐
+                        │             RabbitMQ              │
+                        │   (messages RPC Nova ↔ Cinder)    │
+                        └──────────────────────────────────┘
+                                         │
+         ┌────────────────────────────────┼────────────────────────────────┐
+         │                                │                                │
+         ▼                                ▼                                ▼
+
+┌────────────────────────┐     ┌──────────────────────┐     ┌───────────────────────┐
+│     NOVA-CONDUCTOR     │     │     CINDER-API       │     │   (Notifications)      │
+│(accès DB, orchestration│     │ (Entrée REST Cinder) │     │  vers autres services  │
+└────────────────────────┘     └──────────────────────┘     └───────────────────────┘
+                                         │
+                                         ▼
+                               ┌───────────────────┐
+                               │ CINDER-SCHEDULER  │
+                               │ (choix du backend)│
+                               └───────────────────┘
+                                         │
+                                         ▼
+                               ┌───────────────────┐
+                               │  CINDER-VOLUME    │
+                               │(opérations réelles│
+                               │   sur le storage) │
+                               └───────────────────┘
+                                         │
+                                         ▼
+                        ┌──────────────────────────────────┐
+                        │     Backend de stockage Cinder   │
+                        ├──────────────────────────────────┤
+                        │  - Ceph RBD                      │
+                        │  - LVM                           │
+                        │  - NetApp / Dell EMC / Pure      │
+                        │  - NFS                           │
+                        │  - Autres drivers                │
+                        └──────────────────────────────────┘
+                                         │
+                                         ▼
+                              ┌───────────────────────┐
+                              │     Volumes blocs     │
+                              └───────────────────────┘
+                                         │
+                                         ▼
+                    ┌──────────────────────────────────────────────┐
+                    │                   NOVA-COMPUTE               │
+                    │ (attache/détache les volumes aux instances) │
+                    └──────────────────────────────────────────────┘
+                                         │
+                                         ▼
+                       ┌────────────────────────────────────┐
+                       │           Instance (VM)            │
+                       │   /dev/vdb, /dev/vdc, etc.         │
+                       └────────────────────────────────────┘
+
+
+- contextualiser
+- parler de l'equipe dans laquelle on travail
+- dans la presentation parler du depart vers le recent 
+
+- redhat virt
+- suse virt
