@@ -6,6 +6,8 @@ complete -F YOUR_CMD_FUNCTION kubectl # set this in bashrc
 WARNING : FAIRE UN FOCUS SUR 
 - LES API-GATEWAY
 - LES STRATEGY DANS LES DEPLOYMENT
+- KUSTOMIZE
+- HELM
 
 ## RBAC :
 Subject: The user or process that wants to access a resource.
@@ -100,3 +102,141 @@ kubectl get secret $(kubectl get serviceaccount api-access -n apps \
 curl https://10.10.10.38:6443/api/v1/namespaces/rm/pods --header --insecure
 
 #  Rolling Updates and Rollbacks 
+### Rolling update
+ kubectl set image deployment app-cache memcached=memcached:1.6.10 --record
+
+### Check a rollout status
+k rollout status deployment app-cache
+
+### Check rollout history
+k rollout history deployment app-cache
+
+### Get more details about a rollout
+k rollout history deployment app-cache --revision=2
+
+### Rolling back
+kubectl rollout undo deployment app-cache --to-revision=1
+
+# Scaling Workloads
+## Manually
+kubectl scale deployment app-cache --replicas=6
+kubectl scale statefullset redis --replicas=4
+
+## HPA (Horizontal Pod AutoSacaler)
+kubectl autoscale deployment app-cache --cpu-percent=80 --min=3 --max=5
+
+Warning :
+The HorizontalPodAutoscaler is an API kind in the Kubernetes autoscaling API group. 
+The current stable version can be found in the autoscaling/v2 API version which includes support for scaling on memory and custom metrics.
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  creationTimestamp: null
+  name: app-cache
+spec:
+  maxReplicas: 3
+  minReplicas: 1
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: app-cache
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 60
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: AverageValue
+        averageValue: 500Mi
+
+For the metrics to appear when running kubectl get hpa, metric server should be installed and rsource request/limits should be configured.
+
+# SECRET AND CONFIGMAP
+
+#### CONFIGMAP
+Source options for data parsed by a ConfigMap :
+
+--from-literal : --from-literal=locale=en_US Literal values, which are key-value pairs as plain text
+kubectl create configmap db-config --from-literal=DB_HOST=mysql-service --from-literal=DB_USER=backend
+```
+apiVersion: v1
+data:
+  DB_HOST: mysql-service
+  DB_USER: backend
+kind: ConfigMap
+metadata:
+  name: db-config
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: backend
+spec:
+  containers:
+  - image: mysql:9
+    name: backend
+    envFrom:
+    - configMapRef:
+        name: db-config
+```
+--from-file : --from-file=app-config.json A file with arbitrary contents
+kubectl create configmap db-config --from-file=db.json
+```
+apiVersion: v1
+data:
+  db-config.json: |
+    {
+     "db": {
+     "host": "mysql-service",
+     "user": "backend"
+     }
+    }
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: db-config2
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: db
+spec:
+  containers:
+  - image: bmuschko/web-app:1.0.1
+    name: db
+    volumeMounts:
+      - name: db-volume
+        mountPath: /etc/config
+  volumes:
+    - name: db-volume
+      configMap:
+        name: db-config2
+```
+
+--from-env-file : --from-env-file=config.env A file that contains key-value pairs and expects them to be environment variables
+--from-file :  --from-file=config-dir A directory with one or many files
+
+##### SECRET
+--fromliteral : --from-literal=password=secret Literal values, which are key-value pairs as plain text
+--from-envfile : --from-env-file=config.env A file that contains key-value pairs and expects them to be environment variables
+--from-file : --from-file=id_rsa=~/.ssh/id_rsa A file with arbitrary contents
+--from-file : --from-file=config-dir A directory with one or many files
+
+
+
+
+
+
+
+
+
+
+
+
+
