@@ -8,6 +8,7 @@ WARNING : FAIRE UN FOCUS SUR
 - LES STRATEGY DANS LES DEPLOYMENT
 - KUSTOMIZE
 - HELM
+- YQ
 
 ## RBAC :
 Subject: The user or process that wants to access a resource.
@@ -224,16 +225,64 @@ spec:
 
 ##### SECRET
 --fromliteral : --from-literal=password=secret Literal values, which are key-value pairs as plain text
+
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  name: backend
+spec:
+  containers:
+  - image: mysql:9
+    name: backend
+    envFrom:
+    - configMapRef:
+        name: db-config
+```
+
 --from-envfile : --from-env-file=config.env A file that contains key-value pairs and expects them to be environment variables
 --from-file : --from-file=id_rsa=~/.ssh/id_rsa A file with arbitrary contents
 --from-file : --from-file=config-dir A directory with one or many files
 
+# Kustomize
+Kustomize needs the kustomization.yaml and this file defines the processing rules Kustomize works upon.
+kubectl kustomize <target> : similar to dry-run
+kubectl apply -k <target> : To apply
 
+```
+configMapGenerator:
+- name: db-config
+  files:
+   - config/db-config.properties
+secretGenerator:
+- name: db-creds
+  files:
+   - config/db-secret.properties
+resources:
+- web-app-pod.yaml
+```
+---
 
+```
+namespace: persistence
+commonLabels:
+ team: helix
+resources:
+- web-app-deployment.yaml
+- web-app-service.yaml
+```
+---
 
+##### defines a security context on the container-level for the Pod template of the Deployment. The security rule should be define in a file like security-context.yaml
 
+```
+resources:
+- nginx-deployment.yaml
+patchesStrategicMerge:
+- security-context.yaml
+```
 
-
+# YAML Processor yq
 
 
 
