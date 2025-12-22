@@ -283,7 +283,17 @@ patchesStrategicMerge:
 ```
 
 # YAML Processor yq
+#### Reading values : yq -e
+yq e .metadata.name pod.yaml
 
+### Modifying values
+yq e -i '.spec.containers[].env[1].value = "1.7.0"' spring-boot-app.yaml
+
+# Helm
+Chart.yaml describes the meta information of the chart (e.g., name and version)
+values.yaml contains the key-value pairs used at runtime to replace the placeholders in the YAML manifests. 
+helm template . : for templating, like dry-run
+helm package : for tar the templating output
 
 
 
