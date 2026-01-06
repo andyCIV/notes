@@ -295,7 +295,16 @@ values.yaml contains the key-value pairs used at runtime to replace the placehol
 helm template . : for templating, like dry-run
 helm package : for tar the templating output
 
+# Know the subnet assigned to the nodes by the CNI
+kubectl get nodes k8s-worker-1 -o json | jq .spec.podCIDR
+
+# Use busybox for testing
+kubectl run busybox --image=busybox --rm -it --restart=Never -- wget 192.168.230.37:80
+
+# Create service
+k create service clusterip echoserver --tcp=80:8080 # create service that expose en existing pod pod echoserver
+kubectl run echoserver1 --image=k8s.gcr.io/echoserver1:1.10 --restart=Never --port=8080 --expose # run a pod and expose it (service directly)
+kubectl expose deployment echoserver --port=80 --target-port=8080 # expose a deployment
 
 
-
-
+ 
