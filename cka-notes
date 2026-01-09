@@ -306,5 +306,18 @@ k create service clusterip echoserver --tcp=80:8080 # create service that expose
 kubectl run echoserver1 --image=k8s.gcr.io/echoserver1:1.10 --restart=Never --port=8080 --expose # run a pod and expose it (service directly)
 kubectl expose deployment echoserver --port=80 --target-port=8080 # expose a deployment
 
+# create ingress
+kubectl create ingress corellian  --rule="star-alliance.com/corellian/api=corellian:8080" # Where rule="<host>/<path>=<service>:<port>"
+kubectl get ingress corellian --output=jsonpath="{.status.loadBalancer.ingress[0].ip}" # jsonpath to get the IP of an ingress IP
 
- 
+# Coredns
+kubectl run busybox --image=busybox --rm -it --restart=Never -n dns -- wget echoserver:8080 # Make a call from a pod to a svc in the same ns using the hostname
+k run busybox --image=busybox --rm -it --restart=Never -n business -- wget echoserver.other:8080 # From different ns
+kubectl run busybox --image=busybox --rm -it --restart=Never -n business  -- wget echoserver.other.svc:8080
+kubectl run busybox --image=busybox --rm -it --restart=Never -n business  -- wget echoserver.other.svc.cluster.local:8080
+kubectl run busybox --image=busybox --rm -it --restart=Never -n ns1 -- wget 192-168-140-13.ns1.pod:8080 # make a call to a pod via the ip in the same ns. Where 192-168-140-13.ns1.pod:8080 is ip.ns.pod:port
+
+#jsonPath
+k get pod echoserver1 -n ns1 --template={{.status.podIP}} # get the IP of pod echoserver1 running in ns ns1
+
+
