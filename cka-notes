@@ -321,3 +321,15 @@ kubectl run busybox --image=busybox --rm -it --restart=Never -n ns1 -- wget 192-
 k get pod echoserver1 -n ns1 --template={{.status.podIP}} # get the IP of pod echoserver1 running in ns ns1
 
 
+# Tshoot
+## 503 Service Unavailable, service has no endpoint
+Symptom: curl nginx.home.lan/echo returned 503 Service Temporarily Unavailable.
+Cause: The Kubernetes Service echoserver had no active Endpoints (ENDPOINTS <none>). This was caused by a Label Selector Mismatch.
+Service Selector: app=echoserver
+Pod Label: run=echoserver
+Because the labels didn't match, the Service didn't know which Pods to send traffic to.
+The Fix: We edited the Service (kubectl edit svc) to match the Pod's label (run=echoserver).
+Key Takeaway: A 503 from an Ingress usually means the Ingress Controller cannot connect to the backend Service. Always check kubectl get endpoints to verify the Service has found its Pods.
+
+
+# Volume
