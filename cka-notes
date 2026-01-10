@@ -333,3 +333,41 @@ Key Takeaway: A 503 from an Ingress usually means the Ingress Controller cannot 
 
 
 # Volume
+## volume Types
+emptyDir : Empty directory in Pod with read/write access. Persisted for only the lifespan of a Pod. A good choice for cache implementations or data exchange between containers of a Pod.
+hostPath : File or directory from the host node’s filesystem.
+configMap, secret: Provides a way to inject configuration data. For practical examples, see “Defining and Consuming Configuration Data”.
+nfs : An existing Network File System (NFS) share. Preserves data after Pod restart.
+persistent VolumeClaim : Claims a persistent volume.
+
+### PVC/PV
+
+┌──────────┐
+│   Pod    │
+│          │
+│ utilise  │
+│ un       │
+│ volume   │
+└────┬─────┘
+     │
+     ▼
+┌───────────────┐
+│      PVC      │
+│ Persistent    │
+│ Volume Claim  │
+│               │
+│ "J’ai besoin  │
+│ de 10Gi,      │
+│ RWX, etc."    │
+└────┬──────────┘
+     │
+     ▼
+┌───────────────┐
+│      PV       │
+│ Persistent    │
+│ Volume        │
+│               │
+│ Stockage réel │
+│ (NFS, disque, │
+│ cloud, etc.)  │
+└───────────────┘
