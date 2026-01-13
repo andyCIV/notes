@@ -104,7 +104,7 @@ curl https://10.10.10.38:6443/api/v1/namespaces/rm/pods --header --insecure
 
 #  Rolling Updates and Rollbacks 
 ### Rolling update
- kubectl set image deployment app-cache memcached=memcached:1.6.10 --record
+kubectl set image deployment app-cache memcached=memcached:1.6.10 --record
 
 ### Check a rollout status
 k rollout status deployment app-cache
@@ -340,7 +340,7 @@ configMap, secret: Provides a way to inject configuration data. For practical ex
 nfs : An existing Network File System (NFS) share. Preserves data after Pod restart.
 persistent VolumeClaim : Claims a persistent volume.
 
-### PVC/PV
+## PVC/PV
 
 ┌──────────┐
 │   Pod    │
@@ -371,3 +371,109 @@ persistent VolumeClaim : Claims a persistent volume.
 │ (NFS, disque, │
 │ cloud, etc.)  │
 └───────────────┘
+
+## Volume Mode
+Filesystem : Default. Mounts the volume into a directory of the consuming Pod. Creates a filesystem first if the volume is backed by a block device and the device is empty.
+Block : Used for a volume as a raw block device without a filesystem on it.
+
+## Access Mode
+ReadWriteOnce | RWO : Read/write access by a single node
+ReadOnlyMany | ROX : Read-only access by many nodes
+ReadWriteMany | RWX : Read/write access by many nodes
+ReadWriteOncePod | RWOP : Read/write access mounted by a single Pod
+kubectl get pv db-pv -o jsonpath='{.spec.accessModes}' # get the access mode of a pv
+
+## Claim policy
+Retain : Default. When PersistentVolumeClaim is deleted, the PersistentVolume is “released” and can be reclaimed.
+Delete : Deletion removes PersistentVolume and its associated storage
+kubectl get pv db-pv -o jsonpath='{.spec.persistentVolumeReclaimPolicy}' # Retrieve the claim policy of a pv 
+
+## Mounting PersistentVolumeClaims in a Pod : spec.volumes[].persistentVolumeClaim 
+### Static provisioning 
+#### create storage classes : spec.storageClassName 
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-storage
+provisioner: kubernetes.io/no-provisioner 
+volumeBindingMode: WaitForFirstConsumer
+
+#### Create the PV
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+ name: db-pv
+spec:
+ capacity:
+   storage: 1Gi
+ accessModes:
+   - ReadWriteOnce
+ hostPath:
+   path: /data/db
+ storageClassName: local-storage
+
+#### Create the PVC
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+ name: test-pvc
+spec:
+ accessModes:
+ - ReadWriteOnce
+ resources:
+   requests:
+      storage: 512Mi
+
+#### Mounting the PV in the pod by referencing the PVC
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-consuming-pvc
+spec:
+  volumes:
+    - name: app-storage
+      persistentVolumeClaim:
+        claimName: db-pvc
+  containers:
+    - name: app
+      image: alpine
+      command: ["/bin/sh"]
+      args: ["-c", "while true; do sleep 60; done;"]
+      volumeMounts:
+        - name: app-storage
+          mountPath: "/mnt/data"
+
+### Autoprovisionnig : You need a provisionner that have this capacity. For our lab, we use Rancher Local Path Provisioner
+Installation : kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+### Test :
+ 
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-local-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path  # <--- This is the magic key
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod
+spec:
+  containers:
+  - name: test-container
+    image: busybox
+    command: ["/bin/sh", "-c", "while true; do echo $(date) >> /data/test.txt; sleep 5; done"]
+    volumeMounts:
+    - mountPath: /data
+      name: test-vol
+  volumes:
+  - name: test-vol
+    persistentVolumeClaim:
+      claimName: test-local-pvc
+```
