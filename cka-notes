@@ -424,7 +424,7 @@ spec:
    requests:
       storage: 512Mi
 
-#### Mounting the PV in the pod by referencing the PVC
+#### Mounting the PV in the pod by referencing the PVC # To retrive this shortly search for "Claims As Volumes" on k8s doc
 apiVersion: v1
 kind: Pod
 metadata:
@@ -446,7 +446,7 @@ spec:
 ### Autoprovisionnig : You need a provisionner that have this capacity. For our lab, we use Rancher Local Path Provisioner
 Installation : kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
 ### Test :
- 
+
 ```yaml
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -477,3 +477,69 @@ spec:
     persistentVolumeClaim:
       claimName: test-local-pvc
 ```
+
+# Check if any pod is using the PVC
+kubectl get pods --all-namespaces -o=jsonpath='{range .items[*]}{"\n"}{.metadata.name}{":\t"}{range .spec.volumes[*]}{.persistentVolumeClaim.claimName}{" "}{end}{end}' | grep <your-pvc-name>
+
+# patch a PVC to remove the finalizer blocking a deletion. It works also for a PV
+kubectl patch pvc <pvc-name> -n <namespace> -p '{"metadata":{"finalizers":null}}'
+
+# Tshoot
+
+ImagePullBackOff or ErrImagePull :: Image could not be pulled from registry. : Check correct image name, check that image name exists in registry, verify network access from node to registry, ensure
+proper authentication.
+CrashLoopBackOff :: Application or command run in container crashes. : Check command executed in container, ensure that image can properly execute (e.g., by creating a container with Docker).
+CreateContainerConfigError :: ConfigMap or Secret referenced by container cannot be found. : Check correct name of the configuration object, verify the existence of the configuration object in the namespace.
+
+## Lists the events across all Pods for a given namespace.
+kubectl get events 
+
+## logs from the previous instantiation of a container : helpful if the container has been restarted
+k logs --previous pod-name
+
+## show pods and services labels
+root@k8s-master ~/exam # k get svc corellian --show-labels 
+NAME        TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE   LABELS
+corellian   ClusterIP   10.101.250.103   <none>        8080/TCP   11d   app=corellian
+root@k8s-master ~/exam # k get pod corellian --show-labels 
+NAME        READY   STATUS    RESTARTS   AGE   LABELS
+corellian   1/1     Running   0          11d   app=corellian
+
+P.S : The svc targetPort and the pod containerPort should be the same
+
+## control plane tshoot
+kubectl cluster-info
+kubectl cluster-info dump
+
+## worker nodes
+check kubelet : 
+   - service systemd status
+   - certificate vality : openssl x509 -in /var/lib/kubelet/pki/kubelet.crt -text
+check kube-proxy
+check resources available
+
+# Manual scheduling
+
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    run: nginx
+  name: nginx
+spec:
+  containers:
+  - image: nginx
+    name: nginx
+    resources: {}
+  nodeName: k8s-worker-1
+status: {}
+
+# Labels and selectors
+k get po --show-labels
+k get po --selector app=App1
+k get all --selector env=prod # Get all the object with label env-prod
+k get pod --selector env=prod,bu=finance,tier=frontend # get pod part of many labels
+k get po --selector app=echoserver2 --no-headers # get the pods whith label app=echoserver2, no-headers
+
+# Taint and toleration : taint are set on node and toleration on pods
