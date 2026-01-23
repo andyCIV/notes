@@ -543,3 +543,47 @@ k get pod --selector env=prod,bu=finance,tier=frontend # get pod part of many la
 k get po --selector app=echoserver2 --no-headers # get the pods whith label app=echoserver2, no-headers
 
 # Taint and toleration : taint are set on node and toleration on pods
+k taint nodes node-name key=value:taint-effect # taint-effect : NoSchedule, PreferNoSchedule, NoExecute
+add a taint : k taint nodes node1 app=myapp:NoSchedule
+Delete a taint :  k taint node controlplane node-role.kubernetes.io/control-plane:NoSchedule- 
+### Add teleration in a pod. Should be align with containers section in the yaml file
+tolerations:
+- key: "key1"
+  operator: "Equal"
+  value: "value1"
+  effect: "NoSchedule"
+
+# Node selector
+Label a node : k label node node-1 key=value
+
+Then use nodeSelector to reference the label in the pod.
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  labels:
+    env: test
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    imagePullPolicy: IfNotPresent
+  nodeSelector:
+    key: value
+```
+# Node affinity
+requiredDuringSchedulingIgnoredDuringExecution: The scheduler can't schedule the Pod unless the rule is met.
+preferredDuringSchedulingIgnoredDuringExecution: The scheduler tries to find a node that meets the rule. If a matching node is not available, the scheduler still schedules the Pod.
+Operators : In, NotIn, Exists, DoesNotExist, Gt and Lt
+
+# Static Pods
+paste the pod yaml file in /etc/kubernetes/manifests/
+
+# Get pririty classes on pods
+kubectl get pods -o custom-columns="NAME:.metadata.name,PRIORITY:.spec.priorityClassName"
+
+# Admission controller
+check enabling plugins : ps -ef | grep kube-apiserver | grep admission-plugins
+add plugins, edit the kube-apiserver manifest, look for the enable-admission-plugins section, and add the desired adminsion controller.
+check the evailable plugins : k -n kube-system exec -it kube-apiserver-k8s-master -- kube-apiserver -h | grep enable-admission-plugins
