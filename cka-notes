@@ -220,6 +220,19 @@ spec:
         name: db-config2
 ```
 
+```
+spec:
+  containers:
+  - envFrom:
+      - configMapRef:
+          name: webapp-color
+    image: kodekloud/webapp-color
+    imagePullPolicy: Always
+    name: webapp-color
+    resources: {}
+```
+
+
 --from-env-file : --from-env-file=config.env A file that contains key-value pairs and expects them to be environment variables
 --from-file :  --from-file=config-dir A directory with one or many files
 
@@ -587,3 +600,94 @@ kubectl get pods -o custom-columns="NAME:.metadata.name,PRIORITY:.spec.priorityC
 check enabling plugins : ps -ef | grep kube-apiserver | grep admission-plugins
 add plugins, edit the kube-apiserver manifest, look for the enable-admission-plugins section, and add the desired adminsion controller.
 check the evailable plugins : k -n kube-system exec -it kube-apiserver-k8s-master -- kube-apiserver -h | grep enable-admission-plugins
+MutatingAdmissionController are those that can change/mutate a requests 
+ValidatingAdmissionController are those that can validate a request and allow or deny a request.
+MutatingAdmissionWebhook : 
+ValidatingAdmissionWebhook : 
+
+# Command and args
+
+apiVersion: v1 
+kind: Pod 
+metadata:
+  name: ubuntu-sleeper-3 
+spec:
+  containers:
+  - name: ubuntu
+    image: ubuntu
+    command:
+      - sleep
+      - "2000"
+      
+apiVersion: v1 
+kind: Pod 
+metadata:
+  name: webapp-green
+  labels:
+      name: webapp-green 
+spec:
+  containers:
+  - name: simple-webapp
+    image: kodekloud/webapp-color
+    command: ["python", "app.py"]
+    args: ["--color", "pink"]
+
+# Get secret in etcd db
+etcdctl --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key
+ get /registry/secrets/apps/db-creds | hexdump -C
+
+# mulicontainers
+## initcontainers : Init containers always run to completion., Each init container must complete successfully before the next one starts.
+
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myapp-pod
+  labels:
+    app.kubernetes.io/name: MyApp
+spec:
+  containers:
+  - name: myapp-container
+    image: busybox:1.28
+    command: ['sh', '-c', 'echo The app is running! && sleep 3600']
+  initContainers:
+  - name: init-myservice
+    image: busybox:1.28
+    command: ['sh', '-c', "until nslookup myservice.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local; do echo waiting for myservice; sleep 2; done"]
+  - name: init-mydb
+    image: busybox:1.28
+    command: ['sh', '-c', "until nslookup mydb.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local; do echo waiting for mydb; sleep 2; done"]
+```
+
+## sidecar container : sidecar are a specific case of initcontainers and  remain running after Pod startup.
+Sidecacr container are used to enhance or to extend the functionality of the primary app container by providing additional services, or functionality such as logging, monitoring, security, or data synchronization, without directly altering the primary application code.
+Sidecar containers are creating the same like initcontainers.The main difference is to set "restartPolicy: Always"
+
+# In-Place Pod sizing : in k8s by default since k8s 1.27
+
+# vpa
+git clone https://github.com/kubernetes/autoscaler.git
+
+```
+---
+apiVersion: "autoscaling.k8s.io/v1"
+kind: VerticalPodAutoscaler
+metadata:
+  name: flask-app
+spec:
+  targetRef:
+    apiVersion: "apps/v1"
+    kind: Deployment
+    name: flask-app-4
+  updatePolicy:
+    updateMode: "Off"  # You can set this to "Auto" if you want automatic updates
+  resourcePolicy:
+    containerPolicies:
+      - containerName: '*'
+        minAllowed:
+          cpu: 100m
+        maxAllowed:
+          cpu: 1000m
+        controlledResources: ["cpu"]
+```
