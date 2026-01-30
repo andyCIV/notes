@@ -669,7 +669,6 @@ Sidecar containers are creating the same like initcontainers.The main difference
 # vpa
 git clone https://github.com/kubernetes/autoscaler.git
 
-```
 ---
 apiVersion: "autoscaling.k8s.io/v1"
 kind: VerticalPodAutoscaler
@@ -691,3 +690,54 @@ spec:
           cpu: 1000m
         controlledResources: ["cpu"]
 ```
+
+# Pod eviction timeout
+kube-controller-manger --pod-eviction-timeout=5m0s
+k drain node-1 # gracefully terminate the pods 
+k uncordon node-1 # after a gracefull termination, uncordon the node for the node to be schedulable again
+k cordon node-1 # mark a node unschedulable
+kubectl drain node01 --ignore-daemonsets # force to drain all the pods in a node even daemonSets
+
+# Security
+## Authentication
+- Generate private key : openssl genrsa -out my-bank.key 2048
+- Generate pub key : openssl rsa -in my-bank.key -pubout > mybank.pem
+- Generate a csr : openssl req -new -key my-bank.key -out my-bank.csr -subj "/C=US/ST=CA/O=MyOrg, Inc./CN=mybank.com"
+
+# check certificate 
+openssl x509 in /etc/kubernetes/pki/apiserver.crt -text -noout
+
+# approve.sh
+#!/usr/bin/env bash
+kubectl certificate approve --kubeconfig admin.kubeconfig $(kubectl get csr --kubeconfig admin.kubeconfig -o json | jq -r '.items | .[]  | select(.spec.username == "system:node:node02") | .metadata.name')
+
+# context
+kubectl config --kubeconfig=/root/my-kube-config use-context research
+kubectl config --kubeconfig=/root/my-kube-config current-context 
+
+# Change the .kube/config file for our own one
+Open your shell configuration file:
+vi ~/.bashrc
+
+Add one of these lines to export the variable:
+export KUBECONFIG=/root/my-kube-config
+# OR
+export KUBECONFIG=~/my-kube-config
+# OR
+export KUBECONFIG=$HOME/my-kube-config
+
+Apply the Changes:
+
+Reload the shell configuration to apply the changes in the current session:
+
+source ~/.bashrc
+
+# Get all the clusterrole in a cluster
+kubectl get clusterroles --no-headers  | wc -l 
+kubectl get clusterroles --no-headers  -o json | jq '.items | length'
+
+# Service accounts
+k create tokent token_name --duration 2h
+
+# decode a token
+jq -R 'split(".") | select(length > 0) | .[0],.[1] | @base64d | fromjson' <<< paste the tocken 
