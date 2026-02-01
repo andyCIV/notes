@@ -209,7 +209,9 @@ tenant_network_types = vxlan
 mechanism_drivers = openvswitch
 pg_num : le nombre de pg actuelle dans le pool 
 pgp_num : ce que reecommande l'autoscaler
-
+                (OSDs * 100)
+   Total PGs =  ------------
+                 pool size
 Procedure de restoration ceph : 
 # 1. Démarrer les MONs en premier (ordre critique!)
 systemctl start ceph-mon@<hostname>
