@@ -284,7 +284,26 @@ resources:
 - web-app-deployment.yaml
 - web-app-service.yaml
 ```
----
+############# udemy ##########
+```
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - db/
+  - monitoring/
+  - nginx/
+
+commonLabels:
+  sandbox: dev
+namespace: logging
+images:
+- name: nginx
+  newName: httpd
+  newTag: "2.4.6"
+```
+
+
 
 ##### defines a security context on the container-level for the Pod template of the Deployment. The security rule should be define in a file like security-context.yaml
 
@@ -294,6 +313,11 @@ resources:
 patchesStrategicMerge:
 - security-context.yaml
 ```
+
+
+
+
+
 
 # YAML Processor yq
 #### Reading values : yq -e
@@ -334,7 +358,6 @@ Ex : web-service.apps.svc.cluster.local | 10-244-2-5.apps.pod.cluster.local
 
 #jsonPath
 k get pod echoserver1 -n ns1 --template={{.status.podIP}} # get the IP of pod echoserver1 running in ns ns1
-
 
 # Tshoot
 ## 503 Service Unavailable, service has no endpoint
@@ -1120,4 +1143,74 @@ sysctl net.ipv4.ip_forward
 sudo apt-cache madison kubeadm
 
 
-# Helm
+# Helm : a pkg manager for k8s
+Charts : a collection of file
+Release : a single installation of an application using helm Charts. Within each release there are a revision
+Revision : is like a snap of an apllication
+values.yaml : is like a param file
+
+## install Chart
+helm install [release-name] [chart-name]
+Ex : helm install my-site bitnami/wordpress 
+apiVersion : v1 for helm 2 and v2 for helm 3
+appVersion : version of the app
+version : version of the chart
+
+helm install myapp bitnami/nginx # from repo
+helm install myapp ./mon-chart/ # from local
+helm install myapp oci://ghcr.io/org/charts/myapp --version 1.2.3 # from oci repo
+helm install myapp bitnami/nginx \
+  -n production --create-namespace \
+  -f values-prod.yaml \
+  --set replicaCount=3 #create ns and set values with charts from repo
+helm install myapp ./chart \
+  --atomic \
+  --timeout 5m \
+  --wait # wait for the charts to be install
+
+# add a helm repo and install a charts
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm install my-realease bitnami/wordpress 
+
+# uninstall a release 
+helm unistall my-release
+helm uninstall myapp -n production
+helm uninstall myapp --keep-history
+
+# update a repo
+helm repo update 
+
+## pull and untar a chart
+helm pull --untar [chart-name]
+
+# Deploy the Apache application on the cluster using the apache from the bitnami repository. Set the release Name to: amaze-surf
+helm install amaze-surf bitnami/apache
+
+# upgrade a chart
+helm upgrade release-name chart-name
+helm upgrade dazzling-web bitnami/nginx --version 18.3.6
+helm upgrade --install myapp ./chart \
+  -n production \
+  -f values-prod.yaml \
+  --atomic \
+  --wait
+
+# check history
+helm history release-name 
+
+# rollback
+helm rollback release-name revision-number
+
+# search a chart in repo
+helm search repo [your_search_string]
+
+# helm template 
+helm template myapp ./chart -f values.yaml # Voir ce que Helm va générer
+helm template myapp ./chart | grep -A 50 "kind: Deployment" # Filtrer un type de ressource
+helm template myapp ./chart -f values-prod.yaml > manifests.yaml # Sauvegarder pour inspection
+helm template myapp ./chart --validate # Avec validation serveur (dry-run)
+
+# kustomize
+
+
+
