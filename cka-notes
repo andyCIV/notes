@@ -283,7 +283,17 @@ commonLabels:
 resources:
 - web-app-deployment.yaml
 - web-app-service.yaml
+
 ```
+
+```
+resources:
+- nginx-deployment.yaml
+patchesStrategicMerge:
+- security-context.yaml
+```
+
+
 ############# udemy ##########
 ```
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -303,20 +313,116 @@ images:
   newTag: "2.4.6"
 ```
 
+# patches with kustomize : Json 6902 vs Strategic Merge Patch
+## Json 6902 Patch
 
+```
+patches:
+  - target : 
+      kind: Deployment
+      name: api-deployment
+    patch: |-
+      - op: replace
+        path: /sepc/replicas
+        value: 5
+        
+```
 
-##### defines a security context on the container-level for the Pod template of the Deployment. The security rule should be define in a file like security-context.yaml
+## Strategic Merge Patch : Just copy the section you want to patch from a normal manifest
+
+```
+pacthes:
+   - patch: |-
+       apiVersion: apps/v1
+       kind: Deployment
+       metadata:
+         name: api-deployment
+       spec:
+         replicas: 5
+```
+Or you can create a file like patch.yaml :
+
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-deployment
+spec:
+  replicas: 5
+```
+
+And call path.yaml in the kustomization.yaml
+
+```
+pacthes:
+   - patch.yaml
+```
 
 ```
 resources:
-- nginx-deployment.yaml
-patchesStrategicMerge:
-- security-context.yaml
+  - mongo-depl.yaml
+  - nginx-depl.yaml
+  - mongo-service.yaml
+
+patches:
+  - target:
+      kind: Deployment
+      name: nginx-deployment
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+
+  - target:
+      kind: Deployment
+      name: mongo-deployment
+    path: mongo-label-patch.yaml
+
+  - target:
+      kind: Service
+      name: mongo-cluster-ip-service
+    patch: |-
+      - op: replace
+        path: /spec/ports/0/port
+        value: 30000
+
+      - op: replace
+        path: /spec/ports/0/targetPort
+        value: 30000
 ```
 
+## delete a list
+
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-deployment
+spec:
+  template:
+    spec:
+      containers:
+        - $patch: delete
+          name: memcached
+```
+# Json6902
+```
+patches:
+  - target:
+      kind: deployment
+      name: api-Deployment
+    patch: |-
+      op: remove
+      path: /spec/template/spec/containers/1
+  
+```
+
+### Overlays
+### Components
+When adding a new component entitity, do not add in resource, the path to the base. Or add in the overlays the patch to the component.
 
 
-
+##### defines a security context on the container-level for the Pod template of the Deployment. The security rule should be define in a file like security-context.yaml
 
 
 # YAML Processor yq
@@ -521,40 +627,6 @@ kubectl get pods --all-namespaces -o=jsonpath='{range .items[*]}{"\n"}{.metadata
 
 # patch a PVC to remove the finalizer blocking a deletion. It works also for a PV
 kubectl patch pvc <pvc-name> -n <namespace> -p '{"metadata":{"finalizers":null}}'
-
-# Tshoot
-
-ImagePullBackOff or ErrImagePull :: Image could not be pulled from registry. : Check correct image name, check that image name exists in registry, verify network access from node to registry, ensure
-proper authentication.
-CrashLoopBackOff :: Application or command run in container crashes. : Check command executed in container, ensure that image can properly execute (e.g., by creating a container with Docker).
-CreateContainerConfigError :: ConfigMap or Secret referenced by container cannot be found. : Check correct name of the configuration object, verify the existence of the configuration object in the namespace.
-
-## Lists the events across all Pods for a given namespace.
-kubectl get events 
-
-## logs from the previous instantiation of a container : helpful if the container has been restarted
-k logs --previous pod-name
-
-## show pods and services labels
-root@k8s-master ~/exam # k get svc corellian --show-labels 
-NAME        TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE   LABELS
-corellian   ClusterIP   10.101.250.103   <none>        8080/TCP   11d   app=corellian
-root@k8s-master ~/exam # k get pod corellian --show-labels 
-NAME        READY   STATUS    RESTARTS   AGE   LABELS
-corellian   1/1     Running   0          11d   app=corellian
-
-P.S : The svc targetPort and the pod containerPort should be the same
-
-## control plane tshoot
-kubectl cluster-info
-kubectl cluster-info dump
-
-## worker nodes
-check kubelet : 
-   - service systemd status
-   - certificate vality : openssl x509 -in /var/lib/kubelet/pki/kubelet.crt -text
-check kube-proxy
-check resources available
 
 # Manual scheduling
 
@@ -1210,7 +1282,64 @@ helm template myapp ./chart | grep -A 50 "kind: Deployment" # Filtrer un type de
 helm template myapp ./chart -f values-prod.yaml > manifests.yaml # Sauvegarder pour inspection
 helm template myapp ./chart --validate # Avec validation serveur (dry-run)
 
-# kustomize
+# TSHOOT
+## Tshoot an app
+- check the api : curl store.home.lab
+- check the svc : curl the svc from a pod, describe the svc
+- Does the svc exposed a pod ?
+- check the labels of the pod and compare the one in the svc
+- check the logs of the pods 
+- If a svc is not reachable : describe the svc and his pods then compare, the slectors, the ports and the IPs (endpoints)
+- "command failed" err="unable to load client CA provider: open /etc/kubernetes/pki/ca.crt: no such file or directory" : This kind of error does not means that the directory itself does not exist on the controller,
+It may means that the directory is not mounted in the pod.
 
 
 
+ImagePullBackOff or ErrImagePull :: Image could not be pulled from registry. : Check correct image name, check that image name exists in registry, verify network access from node to registry, ensure
+proper authentication.
+CrashLoopBackOff :: Application or command run in container crashes. : Check command executed in container, ensure that image can properly execute (e.g., by creating a container with Docker).
+CreateContainerConfigError :: ConfigMap or Secret referenced by container cannot be found. : Check correct name of the configuration object, verify the existence of the configuration object in the namespace.
+
+## Lists the events across all Pods for a given namespace.
+kubectl get events 
+
+## logs from the previous instantiation of a container : helpful if the container has been restarted
+k logs --previous pod-name
+
+## show pods and services labels
+root@k8s-master ~/exam # k get svc corellian --show-labels 
+NAME        TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE   LABELS
+corellian   ClusterIP   10.101.250.103   <none>        8080/TCP   11d   app=corellian
+root@k8s-master ~/exam # k get pod corellian --show-labels 
+NAME        READY   STATUS    RESTARTS   AGE   LABELS
+corellian   1/1     Running   0          11d   app=corellian
+
+P.S : The svc targetPort and the pod containerPort should be the same
+
+## control plane tshoot
+kubectl cluster-info
+kubectl cluster-info dump
+
+## worker nodes
+check kubelet : 
+   - service systemd status
+   - certificate vality : openssl x509 -in /var/lib/kubelet/pki/kubelet.crt -text
+check kube-proxy
+check resources available
+
+# JsonPath
+
+cat q9.json | jpath '$.prizes[?(@.year == 2014)].laureates[*].firstname'
+
+[start:end:end]
+ cat input.json | jpath '$[-1:]' : get last element of a list
+ cat input.json | jpath '$[-3:]' : 3 dernier elements d'une list
+
+k get nodes -o=jsonpath='{.items[*].metadata.name}{"\n"}{.items[*].status.capacity.cpu}' # \n : new line
+k get nodes -o=jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.capacity.cpu}{"\n"}{end}' # {range .items[*]} : boucle for dans items
+## custom column 
+k get nodes -o=custom-columns=<COLUMN NAME>:<JSON PATH>
+k get nodes -o=custom-columns=NAME:.metadata.name,CPU:.status.capacity.cpu
+# List Services Sorted by Name
+kubectl get services --sort-by=.metadata.name # usually check k8s doc search for kubectl Quick Reference
+k config view --kubeconfig=/root/my-kube-config -o=jsonpath='{.contexts[*].context.user}'
