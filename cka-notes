@@ -1343,3 +1343,31 @@ k get nodes -o=custom-columns=NAME:.metadata.name,CPU:.status.capacity.cpu
 # List Services Sorted by Name
 kubectl get services --sort-by=.metadata.name # usually check k8s doc search for kubectl Quick Reference
 k config view --kubeconfig=/root/my-kube-config -o=jsonpath='{.contexts[*].context.user}'
+
+#
+kubectl -n kube-system get configmap kubeadm-config -o yaml | grep podSubnet
+
+# Generate a **Helm template** from the Argo CD chart **version `7.7.3`** for the **`argocd` namespace**
+helm template argocd argo/argo-cd --version 7.7.3 --namespace argocd --set crds.install=false
+
+--set crds.install=false  : Ensure that **CRDs are not installed** by configuring the chart accordingly
+
+
+#Usefull cmd
+k api-resources --namespaced=true -o name
+kubectl logs -f kube-apiserver-cluster4-controlplane -n kube-system
+kubectl get event --field-selector involvedObject.name=kube-apiserver-cluster4-controlplane -n kube-system
+helm search hub nginx --list-repo-url
+
+kubectl get event --field-selector involvedObject.name=<pod-name>
+
+
+VJ : https://github.com/vj2201/CKA-PREP-2025-v2.git
+
+
+annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+
+# kkubectl explain : render the documentation of a k8s object
+
+kubectl explain certificate.spec.subject --api-version=cert-manager.io/v1 > ~/subject.yaml
